@@ -12,4 +12,5 @@ actix-session = "0.3.0"
 actix-web = { version = "2", features = ["openssl"] }
 awc = { version = "1.0.1", features = ["openssl"] }
 futures = "0.3.4"
+html5ever = "*"
 serde = "1.0.104"
