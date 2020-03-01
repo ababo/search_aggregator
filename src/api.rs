@@ -1,4 +1,4 @@
-use std::fmt;
+use std::{env, fmt};
 
 use actix_web::{client::Client, error::ResponseError};
 use awc::error::{JsonPayloadError, SendRequestError};
@@ -53,8 +53,6 @@ impl From<JsonPayloadError> for Error {
 }
 
 const GOOGLE_URL: &'static str = "https://www.googleapis.com/customsearch/v1";
-const GOOGLE_KEY: &'static str = "AIzaSyCKZXnEw9whbifuySpwncm584Op59e7Z5U";
-const GOOGLE_CX: &'static str = "002842975906381566051:zico5aaukxe";
 
 pub async fn search_google(
     client: &Client,
@@ -62,7 +60,11 @@ pub async fn search_google(
 ) -> Result<Vec<Document>, Error> {
     let url = Url::parse_with_params(
         GOOGLE_URL,
-        &[("key", GOOGLE_KEY), ("cx", GOOGLE_CX), ("q", query)],
+        &[
+            ("key", env::var("GOOGLE_API_KEY").unwrap_or_default()),
+            ("cx", env::var("GOOGLE_API_CX").unwrap_or_default()),
+            ("q", query.to_string()),
+        ],
     )
     .unwrap();
 
@@ -75,7 +77,6 @@ pub async fn search_google(
 
 const BING_URL: &'static str =
     "https://api.cognitive.microsoft.com/bing/v7.0/search";
-const BING_KEY: &'static str = "8442e9e17ece414bac0f45d3dce2264d";
 
 pub async fn search_bing(
     client: &Client,
@@ -85,7 +86,10 @@ pub async fn search_bing(
 
     let mut resp = client
         .get(url.as_str())
-        .header("ocp-apim-subscription-key", BING_KEY)
+        .header(
+            "ocp-apim-subscription-key",
+            env::var("BING_API_KEY").unwrap_or_default(),
+        )
         .send()
         .await?;
 
