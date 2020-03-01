@@ -11,6 +11,12 @@ actix-rt = "1"
 actix-session = "0.3.0"
 actix-web = { version = "2", features = ["openssl"] }
 awc = { version = "1.0.1", features = ["openssl"] }
+env_logger = "0.7.1"
 futures = "0.3.4"
 html5ever = "*"
+log = "0.4.8"
+rake = "0.2.0"
 serde = "1.0.104"
+streaming-stats = "0.2.3"
+strsim = "0.10.0"
+url = "2.1.1"
