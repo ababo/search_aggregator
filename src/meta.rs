@@ -113,7 +113,9 @@ fn match_keywords(keywords: &Vec<String>, words: &Vec<String>) -> Vec<Match> {
                     Ordering::Less
                 }
             });
-        matches.push(kmatch.unwrap());
+        if kmatch.is_some() {
+            matches.push(kmatch.unwrap());
+        }
     }
 
     matches

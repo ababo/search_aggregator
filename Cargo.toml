@@ -8,8 +8,8 @@ edition = "2018"
 
 [dependencies]
 actix-rt = "1"
-actix-session = "0.3.0"
 actix-web = { version = "2", features = ["openssl"] }
+askama = "0.8"
 awc = { version = "1.0.1", features = ["openssl"] }
 env_logger = "0.7.1"
 futures = "0.3.4"

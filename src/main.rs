@@ -14,6 +14,7 @@ use actix_web::{
     web::{Data as WebData, Query},
     App, HttpRequest, HttpResponse, HttpServer, Result,
 };
+use askama::Template;
 use futures::{future::join_all, try_join};
 use log::info;
 use rake::{Rake, StopWords};
@@ -53,10 +54,23 @@ async fn process_api(
     Ok((docs, dur, metas))
 }
 
-#[derive(Debug, Deserialize)]
-pub struct SearchRequest {
+#[derive(Clone, Debug, Default, Deserialize)]
+pub struct SearchParams {
+    #[serde(default)]
     query: String,
+    #[serde(default)]
     meta: bool,
+}
+
+#[derive(Default, Template)]
+#[template(path = "search.html")]
+struct SearchTemplate<'a> {
+    name: &'a str,
+    params: SearchParams,
+    google_dur: Duration,
+    bing_dur: Duration,
+    total_dur: Duration,
+    items: Vec<(Document, Meta)>,
 }
 
 fn get_keywords(rake: &Rake, text: &str) -> Vec<String> {
@@ -76,17 +90,16 @@ fn get_keywords(rake: &Rake, text: &str) -> Vec<String> {
     extracted
 }
 
-const MAX_NUM_OF_DOCS: usize = 10;
+const PAGE_NAME: &'static str = "Search Aggregator";
+const MAX_NUM_OF_ITEMS: usize = 10;
 
-#[get("/search")]
-async fn handle_search(
-    req: HttpRequest,
-    Query(params): Query<SearchRequest>,
-) -> Result<HttpResponse> {
+async fn process_search(
+    data: &Data,
+    params: &SearchParams,
+) -> Result<SearchTemplate<'static>> {
     let start = Instant::now();
     info!("{:?}", params);
 
-    let data = req.app_data::<WebData<Data>>().unwrap();
     let keywords = get_keywords(&data.rake, &params.query);
     info!("keywords: {:?}", keywords);
 
@@ -97,8 +110,10 @@ async fn handle_search(
         &keywords,
         params.meta,
     );
+
     let bfut =
         process_api(&data, Engine::Bing, &params.query, &keywords, params.meta);
+
     let ((gdocs, gdur, gmetas), (bdocs, bdur, bmetas)) = try_join!(gfut, bfut)?;
 
     let mut docs = vec![];
@@ -116,18 +131,40 @@ async fn handle_search(
         zipped.sort_by(|a, b| b.1.score.partial_cmp(&a.1.score).unwrap());
     }
 
-    if zipped.len() > MAX_NUM_OF_DOCS {
-        zipped.truncate(MAX_NUM_OF_DOCS);
+    if zipped.len() > MAX_NUM_OF_ITEMS {
+        zipped.truncate(MAX_NUM_OF_ITEMS);
     }
 
-    let dur = start.elapsed();
+    Ok(SearchTemplate {
+        name: PAGE_NAME,
+        params: params.clone(),
+        google_dur: gdur,
+        bing_dur: bdur,
+        total_dur: start.elapsed(),
+        items: zipped,
+        ..Default::default()
+    })
+}
+
+#[get("/search")]
+async fn handle_search(
+    req: HttpRequest,
+    Query(params): Query<SearchParams>,
+) -> Result<HttpResponse> {
+    let template = if params.query != "" {
+        let data = req.app_data::<WebData<Data>>().unwrap();
+        process_search(&data, &params).await?
+    } else {
+        SearchTemplate {
+            name: PAGE_NAME,
+            params,
+            ..Default::default()
+        }
+    };
 
     Ok(HttpResponse::build(StatusCode::OK)
         .content_type("text/html; charset=utf-8")
-        .body(format!(
-            "resp: {:?} {:?} {:?} {:?}",
-            gdur, bdur, dur, zipped
-        )))
+        .body(template.render().unwrap()))
 }
 
 #[actix_rt::main]
