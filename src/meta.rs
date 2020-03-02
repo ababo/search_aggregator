@@ -126,6 +126,10 @@ fn generate_snippet(
     matches: &Vec<Match>,
     max_context_words_per_match: usize,
 ) -> String {
+    if matches.len() == 0 {
+        return "".to_string();
+    }
+
     let mut snippet = String::new();
 
     let mut i = 0;
