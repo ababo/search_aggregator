@@ -4,6 +4,7 @@ mod meta;
 use std::{
     env,
     io::{Error, ErrorKind},
+    str::from_utf8,
     time::{Duration, Instant},
 };
 
@@ -135,6 +136,11 @@ async fn process_search(
         zipped.truncate(MAX_NUM_OF_ITEMS);
     }
 
+    zipped = zipped
+        .into_iter()
+        .filter(|item| item.1.snippet.len() > 0)
+        .collect();
+
     Ok(SearchTemplate {
         name: PAGE_NAME,
         params: params.clone(),
@@ -173,13 +179,14 @@ async fn main() -> std::io::Result<()> {
 
     let args: Vec<String> = env::args().collect();
     if args.len() != 2 {
-        return Err(Error::new(
-            ErrorKind::Other,
-            "no stop words file provided",
-        ));
+        return Err(Error::new(ErrorKind::Other, "no address provided"));
     }
 
-    let sw = StopWords::from_file(&args[1])?;
+    let mut sw = StopWords::new();
+    let bytes = include_bytes!("../stop_words.en.txt");
+    for word in bytes.split(|b| *b == ('\n' as u8)) {
+        sw.insert(from_utf8(word).unwrap().to_string());
+    }
 
     HttpServer::new(move || {
         App::new()
@@ -189,7 +196,7 @@ async fn main() -> std::io::Result<()> {
             })
             .service(handle_search)
     })
-    .bind("127.0.0.1:8080")?
+    .bind(&args[1])?
     .run()
     .await
 }
