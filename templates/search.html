@@ -81,7 +81,7 @@
             </div>
           </div>
         {% endfor %}
-        {% if items.len() == 0 %}
+        {% if total_dur.as_nanos() != 0 && items.len() == 0 %}
           <div class="empty">Sorry, nothing is found.</div>
         {% endif %}
       </div>
