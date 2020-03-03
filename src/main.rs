@@ -42,7 +42,11 @@ async fn process_api(
     let docs = search(&data.client, engine, query).await?;
     let dur = start.elapsed();
 
-    info!("received data from {:?} API", engine);
+    info!(
+        "received data from {:?} API ({:?} docs)",
+        engine,
+        docs.len()
+    );
 
     let metas = if with_meta {
         let futs: Vec<_> = docs
@@ -137,7 +141,8 @@ async fn process_search(
         .into_iter()
         .zip(metas.into_iter())
         .filter(|item| {
-            item.1.snippet.len() > 0 && item.1.score >= MIN_ITEM_SCORE
+            item.1.snippet.len() > 0
+                && (!params.meta || item.1.score >= MIN_ITEM_SCORE)
         })
         .collect();
 
