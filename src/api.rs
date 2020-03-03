@@ -99,6 +99,7 @@ pub async fn search_bing(
 }
 
 // Need this to workaround the lack of async trait support.
+#[derive(Debug)]
 pub enum Engine {
     Google,
     Bing,
@@ -106,7 +107,7 @@ pub enum Engine {
 
 pub async fn search(
     client: &Client,
-    engine: Engine,
+    engine: &Engine,
     query: &str,
 ) -> Result<Vec<Document>, Error> {
     match engine {

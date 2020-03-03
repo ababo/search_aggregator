@@ -33,7 +33,7 @@ struct Data {
 
 async fn process_api(
     data: &Data,
-    engine: Engine,
+    engine: &Engine,
     query: &str,
     keywords: &Vec<String>,
     with_meta: bool,
@@ -41,6 +41,8 @@ async fn process_api(
     let start = Instant::now();
     let docs = search(&data.client, engine, query).await?;
     let dur = start.elapsed();
+
+    info!("received data from {:?} API", engine);
 
     let metas = if with_meta {
         let futs: Vec<_> = docs
@@ -93,27 +95,33 @@ fn get_keywords(rake: &Rake, text: &str) -> Vec<String> {
 
 const PAGE_NAME: &'static str = "Search Aggregator";
 const MAX_NUM_OF_ITEMS: usize = 10;
+const MIN_ITEM_SCORE: f64 = 0.7;
 
 async fn process_search(
     data: &Data,
     params: &SearchParams,
 ) -> Result<SearchTemplate<'static>> {
     let start = Instant::now();
-    info!("{:?}", params);
+    info!("request params: {:?}", params);
 
     let keywords = get_keywords(&data.rake, &params.query);
-    info!("keywords: {:?}", keywords);
+    info!("query keywords: {:?}", keywords);
 
     let gfut = process_api(
         &data,
-        Engine::Google,
+        &Engine::Google,
         &params.query,
         &keywords,
         params.meta,
     );
 
-    let bfut =
-        process_api(&data, Engine::Bing, &params.query, &keywords, params.meta);
+    let bfut = process_api(
+        &data,
+        &Engine::Bing,
+        &params.query,
+        &keywords,
+        params.meta,
+    );
 
     let ((gdocs, gdur, gmetas), (bdocs, bdur, bmetas)) = try_join!(gfut, bfut)?;
 
@@ -125,8 +133,13 @@ async fn process_search(
     metas.extend(gmetas);
     metas.extend(bmetas);
 
-    let mut zipped: Vec<(Document, Meta)> =
-        docs.into_iter().zip(metas.into_iter()).collect();
+    let mut zipped: Vec<(Document, Meta)> = docs
+        .into_iter()
+        .zip(metas.into_iter())
+        .filter(|item| {
+            item.1.snippet.len() > 0 && item.1.score >= MIN_ITEM_SCORE
+        })
+        .collect();
 
     if params.meta {
         zipped.sort_by(|a, b| b.1.score.partial_cmp(&a.1.score).unwrap());
@@ -135,11 +148,6 @@ async fn process_search(
     if zipped.len() > MAX_NUM_OF_ITEMS {
         zipped.truncate(MAX_NUM_OF_ITEMS);
     }
-
-    zipped = zipped
-        .into_iter()
-        .filter(|item| item.1.snippet.len() > 0)
-        .collect();
 
     Ok(SearchTemplate {
         name: PAGE_NAME,

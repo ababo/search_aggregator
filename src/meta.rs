@@ -1,4 +1,4 @@
-use std::cmp::Ordering;
+use std::{cmp::Ordering, time::Duration};
 
 use actix_web::client::Client;
 use html5ever::{
@@ -8,6 +8,7 @@ use html5ever::{
         Tokenizer, TokenizerOpts,
     },
 };
+use log::info;
 use stats::mean;
 use strsim::jaro_winkler;
 
@@ -56,8 +57,15 @@ impl TokenSink for TokenHandler {
     }
 }
 
+const TIMEOUT_SECS: u64 = 5;
+
 async fn load_doc_words(client: &Client, link: &str) -> Option<Vec<String>> {
-    let mut resp = client.get(link).send().await.ok()?;
+    let mut resp = client
+        .get(link)
+        .timeout(Duration::from_secs(TIMEOUT_SECS))
+        .send()
+        .await
+        .ok()?;
 
     // TODO: Support streaming instead.
     let body = resp.body().await.ok()?;
@@ -228,13 +236,18 @@ pub async fn generate(
     keywords: &Vec<String>,
     doc: &Document,
 ) -> Meta {
+    info!("started to generate snippet for {:?}", &doc.link);
+
     let mut meta = Meta::new();
 
     let words = load_doc_words(client, &doc.link).await;
     if words == None {
+        info!("failed to load text for doc {:?}", &doc.link);
         // The link is invalid, so it will probably be discarded by its score.
         return meta;
     }
+
+    info!("finished loading text for doc {:?}", &doc.link);
 
     let mut matches = match_keywords(keywords, words.as_ref().unwrap());
 
@@ -253,6 +266,9 @@ pub async fn generate(
     }
 
     matches.sort_by(|a, b| a.index.partial_cmp(&b.index).unwrap());
+    matches.dedup_by(|a, b| a.index == b.index);
+
+    info!("matches for doc {:?}: {:?}", &doc.link, matches);
 
     let snippet = generate_snippet(
         words.as_ref().unwrap(),
@@ -260,6 +276,8 @@ pub async fn generate(
         MAX_CONTEXT_WORDS_PER_MATCH,
     );
     let score = mean(matches.iter().map(|m| m.score));
+
+    info!("finished generating snippet for {:?}", &doc.link);
 
     meta.snippet = snippet;
     meta.score = score;

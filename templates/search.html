@@ -19,7 +19,7 @@
       .query {
         height: 20px;
         margin-bottom: 5px;
-        width: 735px;
+        width: 730px;
       }
       .send {
         box-sizing: content-box;
@@ -41,6 +41,10 @@
         font-family: arial,sans-serif;
         line-height: 1.57;
         word-wrap: break-word;
+      }
+      .empty {
+        background-color: #FADBD8;
+        margin: 10px;
       }
     </style>
   </head>
@@ -77,6 +81,9 @@
             </div>
           </div>
         {% endfor %}
+        {% if items.len() == 0 %}
+          <div class="empty">Sorry, nothing is found.</div>
+        {% endif %}
       </div>
     <div>
   </body>
